@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"log"
+	"slices"
 	"strconv"
 
+	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/glifio/go-pools/sdk"
@@ -43,8 +46,22 @@ var collectCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("error listing miners: %v\n", err)
 		}
+		slices.SortFunc(miners, func(a, b address.Address) int {
+			aMinerID, _ := strconv.ParseUint(a.String()[1:], 10, 64)
+			bMinerID, _ := strconv.ParseUint(b.String()[1:], 10, 64)
+			return cmp.Compare(aMinerID, bMinerID)
+		})
+		count := 0
 		for i, miner := range miners {
-			fmt.Printf("Miner: %d/%d: %s\n", i+1, len(miners), miner.String())
+			sectorCount, err := lotusClient.StateMinerSectorCount(ctx, miner, ts.Key())
+			if err != nil {
+				log.Fatalf("error getting sector count for %v: %v", miner, err)
+			}
+			if sectorCount.Active > 0 {
+				count++
+				fmt.Printf("#%d: %d/%d: %s (%d sectors)\n", count, i+1, len(miners),
+					miner.String(), sectorCount.Active)
+			}
 		}
 	},
 }
