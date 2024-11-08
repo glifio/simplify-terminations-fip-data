@@ -6,10 +6,13 @@ import (
 	"log"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-bitfield"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/glifio/go-pools/econ"
 	"github.com/glifio/go-pools/sdk"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -53,14 +56,28 @@ var collectCmd = &cobra.Command{
 		})
 		count := 0
 		for i, miner := range miners {
+			start := time.Now()
 			sectorCount, err := lotusClient.StateMinerSectorCount(ctx, miner, ts.Key())
 			if err != nil {
 				log.Fatalf("error getting sector count for %v: %v", miner, err)
 			}
-			if sectorCount.Active > 0 {
+
+			if sectorCount.Live > 0 {
+				sectors, err := econ.AllSectors(ctx, lotusClient, miner, ts)
+				if err != nil {
+					log.Fatalf("error getting sectors for %v: %v", miner, err)
+				}
+				sample := bitfield.NewFromSet(sectors)
+
+				res, err := econ.TerminateSectors(ctx, lotusClient, miner, &sample, ts)
+				if err != nil {
+					log.Fatalf("error terminating sectors for %v: %v", miner, err)
+				}
+				elapsed := time.Since(start).Seconds()
 				count++
-				fmt.Printf("#%d: %d/%d: %s (%d sectors)\n", count, i+1, len(miners),
-					miner.String(), sectorCount.Active)
+				fmt.Printf("#%d: %d/%d: %s (%d/%d active/live sectors, %0.1fs)\n", count, i+1, len(miners),
+					miner.String(), sectorCount.Active, sectorCount.Live, elapsed)
+				fmt.Printf("%+v\n", res)
 			}
 		}
 	},
