@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"cmp"
+	"encoding/csv"
 	"fmt"
 	"log"
+	"os"
 	"slices"
 	"strconv"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/glifio/go-pools/econ"
 	"github.com/glifio/go-pools/sdk"
+	"github.com/glifio/go-pools/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -37,6 +40,11 @@ var collectCmd = &cobra.Command{
 		}
 
 		debug, err := cmd.Flags().GetBool("debug")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		outputCSV, err := cmd.Flags().GetBool("csv")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -72,6 +80,35 @@ var collectCmd = &cobra.Command{
 			bMinerID, _ := strconv.ParseUint(b.String()[1:], 10, 64)
 			return cmp.Compare(aMinerID, bMinerID)
 		})
+		w := csv.NewWriter(os.Stdout)
+		if err := w.Write([]string{
+			"Miner",
+			"Epoch",
+			"TotalBalance",
+			"TotalBalanceFIL",
+			"AvailableBalance",
+			"AvailableBalanceFIL",
+			"VestingFunds",
+			"VestingFundsFIL",
+			"InitialPledge",
+			"InitialPledgeFIL",
+			"FeeDebt",
+			"FeeDebtFIL",
+			"TerminationFee",
+			"TerminationFeeFIL",
+			"AvgTerminationFeePerPledge",
+			"AvgTerminationFeePerPledgeFIL",
+			"SampledSectors",
+			"LiveSectors",
+			"FaultySectors",
+		}); err != nil {
+			log.Fatalln("error writing record to csv:", err)
+		}
+		w.Flush()
+		if err := w.Error(); err != nil {
+			log.Fatal(err)
+		}
+
 		count := 0
 		for i, miner := range miners {
 			start := time.Now()
@@ -94,12 +131,40 @@ var collectCmd = &cobra.Command{
 				elapsed := time.Since(start).Seconds()
 				count++
 				if progress {
-					fmt.Println(count)
 					log.Printf("#%d: %d/%d: %s (%d/%d active/live sectors, %0.1fs)\n", count, i+1, len(miners),
 						miner.String(), sectorCount.Active, sectorCount.Live, elapsed)
 				}
 				if debug {
 					log.Printf("%+v\n", res)
+				}
+				if outputCSV {
+					if err := w.Write([]string{
+						miner.String(),                                                   // Miner
+						fmt.Sprintf("%d", epoch),                                         // Epoch
+						res.TotalBalance.String(),                                        // TotalBalance
+						fmt.Sprintf("%0.3f", util.ToFIL(res.TotalBalance)),               // TotalBalanceFIL
+						res.AvailableBalance.String(),                                    // AvailableBalance
+						fmt.Sprintf("%0.3f", util.ToFIL(res.AvailableBalance)),           // AvailableBalanceFIL
+						res.VestingFunds.String(),                                        // VestingFunds
+						fmt.Sprintf("%0.3f", util.ToFIL(res.VestingFunds)),               // VestingFundsFIL
+						res.InitialPledge.String(),                                       // InitialPledge
+						fmt.Sprintf("%0.3f", util.ToFIL(res.InitialPledge)),              // InitialPledgeFIL
+						res.FeeDebt.String(),                                             // FeeDebt
+						fmt.Sprintf("%0.3f", util.ToFIL(res.FeeDebt)),                    // FeeDebtFIL
+						res.TerminationFeeFromSample.String(),                            // TerminationFee
+						fmt.Sprintf("%0.3f", util.ToFIL(res.TerminationFeeFromSample)),   // TerminationFeeFIL
+						res.AvgTerminationFeePerPledge.String(),                          // AvgTerminationFeePerPledge
+						fmt.Sprintf("%0.3f", util.ToFIL(res.AvgTerminationFeePerPledge)), // AvgTerminationFeePerPledgeFIL
+						fmt.Sprintf("%d", res.SampledSectors),                            // SampledSectors
+						fmt.Sprintf("%d", res.LiveSectors),                               // LiveSectors
+						fmt.Sprintf("%d", res.FaultySectors),                             // FaultySectors
+					}); err != nil {
+						log.Fatalln("error writing record to csv:", err)
+					}
+					w.Flush()
+					if err := w.Error(); err != nil {
+						log.Fatal(err)
+					}
 				}
 			}
 		}
@@ -110,4 +175,5 @@ func init() {
 	rootCmd.AddCommand(collectCmd)
 	collectCmd.Flags().Bool("progress", true, "Output progress logs to stderr")
 	collectCmd.Flags().Bool("debug", false, "Output debug logs to stderr")
+	collectCmd.Flags().Bool("csv", true, "Output csv to stdout")
 }
