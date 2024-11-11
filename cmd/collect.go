@@ -31,6 +31,16 @@ var collectCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
+		progress, err := cmd.Flags().GetBool("progress")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		debug, err := cmd.Flags().GetBool("debug")
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		nodeDialAddr := viper.GetString("lotus_addr")
 		nodeToken := viper.GetString("lotus_token")
 
@@ -45,9 +55,17 @@ var collectCmd = &cobra.Command{
 			log.Fatalf("could not get tipset: %v\n", err)
 		}
 
+		start := time.Now()
+		if progress {
+			log.Println("Getting list of miners...")
+		}
 		miners, err := lotusClient.StateListMiners(ctx, ts.Key())
 		if err != nil {
 			log.Fatalf("error listing miners: %v\n", err)
+		}
+		if progress {
+			elapsed := time.Since(start).Seconds()
+			log.Printf("Found %d miners in %0.1f seconds\n", len(miners), elapsed)
 		}
 		slices.SortFunc(miners, func(a, b address.Address) int {
 			aMinerID, _ := strconv.ParseUint(a.String()[1:], 10, 64)
@@ -75,9 +93,14 @@ var collectCmd = &cobra.Command{
 				}
 				elapsed := time.Since(start).Seconds()
 				count++
-				fmt.Printf("#%d: %d/%d: %s (%d/%d active/live sectors, %0.1fs)\n", count, i+1, len(miners),
-					miner.String(), sectorCount.Active, sectorCount.Live, elapsed)
-				fmt.Printf("%+v\n", res)
+				if progress {
+					fmt.Println(count)
+					log.Printf("#%d: %d/%d: %s (%d/%d active/live sectors, %0.1fs)\n", count, i+1, len(miners),
+						miner.String(), sectorCount.Active, sectorCount.Live, elapsed)
+				}
+				if debug {
+					log.Printf("%+v\n", res)
+				}
 			}
 		}
 	},
@@ -85,4 +108,6 @@ var collectCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(collectCmd)
+	collectCmd.Flags().Bool("progress", true, "Output progress logs to stderr")
+	collectCmd.Flags().Bool("debug", false, "Output debug logs to stderr")
 }
