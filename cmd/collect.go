@@ -98,7 +98,6 @@ var collectCmd = &cobra.Command{
 			"TerminationFeeFIL",
 			"AvgTerminationFeePerPledge",
 			"AvgTerminationFeePerPledgeFIL",
-			"SampledSectors",
 			"LiveSectors",
 			"FaultySectors",
 		}); err != nil {
@@ -155,7 +154,6 @@ var collectCmd = &cobra.Command{
 						fmt.Sprintf("%0.3f", util.ToFIL(res.TerminationFeeFromSample)),   // TerminationFeeFIL
 						res.AvgTerminationFeePerPledge.String(),                          // AvgTerminationFeePerPledge
 						fmt.Sprintf("%0.3f", util.ToFIL(res.AvgTerminationFeePerPledge)), // AvgTerminationFeePerPledgeFIL
-						fmt.Sprintf("%d", res.SampledSectors),                            // SampledSectors
 						fmt.Sprintf("%d", res.LiveSectors),                               // LiveSectors
 						fmt.Sprintf("%d", res.FaultySectors),                             // FaultySectors
 					}); err != nil {
