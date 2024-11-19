@@ -23,7 +23,7 @@ import (
 
 // collectCmd represents the collect command
 var collectCmd = &cobra.Command{
-	Use:   "collect",
+	Use:   "collect <epoch> [--save-sectors-dir <dir>]",
 	Short: "Extract list of miners and sector data for a specific epoch",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -47,6 +47,16 @@ var collectCmd = &cobra.Command{
 		outputCSV, err := cmd.Flags().GetBool("csv")
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		saveSectorsSubdir := ""
+		saveSectorsDir, err := cmd.Flags().GetString("save-sectors-dir")
+		if err != nil {
+			log.Fatal(err)
+		}
+		if saveSectorsDir != "" {
+			saveSectorsSubdir = fmt.Sprintf("%s/%d", saveSectorsDir, epoch)
+			os.MkdirAll(saveSectorsSubdir, 0750)
 		}
 
 		nodeDialAddr := viper.GetString("lotus_addr")
@@ -123,6 +133,27 @@ var collectCmd = &cobra.Command{
 				}
 				sample := bitfield.NewFromSet(sectors)
 
+				if saveSectorsSubdir != "" {
+					filename := fmt.Sprintf("%s/%s.csv", saveSectorsSubdir, miner)
+					sectorsFile, err := os.Create(filename)
+
+					if err != nil {
+						log.Fatalf("error creating file: %v", filename)
+					}
+					defer sectorsFile.Close()
+					wSectors := csv.NewWriter(sectorsFile)
+					if err := wSectors.Write([]string{
+						"Miner",
+						"Epoch",
+					}); err != nil {
+						log.Fatalln("error writing record to csv:", err)
+					}
+					wSectors.Flush()
+					if err := wSectors.Error(); err != nil {
+						log.Fatal(err)
+					}
+				}
+
 				res, err := econ.TerminateSectors(ctx, lotusClient, miner, &sample, ts)
 				if err != nil {
 					log.Fatalf("error terminating sectors for %v: %v", miner, err)
@@ -174,4 +205,5 @@ func init() {
 	collectCmd.Flags().Bool("progress", true, "Output progress logs to stderr")
 	collectCmd.Flags().Bool("debug", false, "Output debug logs to stderr")
 	collectCmd.Flags().Bool("csv", true, "Output csv to stdout")
+	collectCmd.Flags().String("save-sectors-dir", "", "If set, save CSV files with sector data for each miner in directory")
 }
