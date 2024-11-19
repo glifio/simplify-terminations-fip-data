@@ -145,9 +145,39 @@ var collectCmd = &cobra.Command{
 					if err := wSectors.Write([]string{
 						"Miner",
 						"Epoch",
+						"SectorNumber",
+						"SealProof",
+						"SealedCID",
+						"DealIDs",
+						"Activation",
+						"Expiration",
+						"DealWeight",
+						"VerifiedDealWeight",
+						"InitialPledge",
+						"ExpectedDayReward",
+						"ExpectedStoragePledge",
+						"PowerBaseEpoch",
+						"ReplacedDayReward",
+						"SectorKeyCID",
+						"Flags",
 					}); err != nil {
 						log.Fatalln("error writing record to csv:", err)
 					}
+
+					sectorInfos, err := lotusClient.StateMinerSectors(ctx, miner, &sample, ts.Key())
+					if err != nil {
+						log.Fatalf("error getting sectors for %v: %v", miner, err)
+					}
+					for _, sector := range sectorInfos {
+						fmt.Printf("Jim sector: %+v\n", sector)
+						if err := wSectors.Write([]string{
+							miner.String(),           // Miner
+							fmt.Sprintf("%d", epoch), // Epoch
+						}); err != nil {
+							log.Fatalln("error writing record to csv:", err)
+						}
+					}
+
 					wSectors.Flush()
 					if err := wSectors.Error(); err != nil {
 						log.Fatal(err)
